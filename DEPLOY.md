@@ -2,7 +2,87 @@
 
 This guide covers deploying LCFMS to production. Choose your path based on your needs and budget.
 
-## Option A: Single VPS (Recommended for Quick Start)
+## Option A: Vercel + Render (Recommended for Beginners)
+
+Best for: Zero server management, free tier available, automatic SSL + CI/CD.
+
+**Architecture:**
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   Vercel    │ ──── │   Render    │ ──── │  PostgreSQL │
+│  (Frontend) │      │  (Backend)  │      │   (Render)  │
+└─────────────┘      └─────────────┘      └─────────────┘
+                            │
+                     ┌──────┘
+                     ▼
+               ┌─────────────┐
+               │Redis (Render)│
+               └─────────────┘
+```
+
+### Step 1: Deploy Backend on Render
+
+1. Go to https://dashboard.render.com/blueprint
+2. Click **New Blueprint Instance**
+3. Connect your GitHub repo (`masaitrevis/limifleet`)
+4. Render auto-detects `render.yaml` and sets up:
+   - PostgreSQL database
+   - Redis cache
+   - Backend API service
+5. After deployment, copy your **API URL** (e.g., `https://lcfms-api.onrender.com`)
+
+### Step 2: Deploy Frontend on Vercel
+
+1. Go to https://vercel.com/new
+2. Import your GitHub repo (`masaitrevis/limifleet`)
+3. In the project settings, configure:
+   - **Framework Preset**: Next.js
+   - **Root Directory**: `apps/web`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `.next`
+4. Add environment variables in Vercel Dashboard:
+   ```
+   NEXT_PUBLIC_API_URL=https://your-render-api-url.onrender.com
+   NEXT_PUBLIC_MAPBOX_TOKEN=your-mapbox-token
+   ```
+5. Deploy! Vercel gives you a URL like `https://limifleet.vercel.app`
+
+### Step 3: Connect Frontend → Backend
+
+1. Go to Render Dashboard → your API service → Environment
+2. Add `FRONTEND_URL` with your Vercel URL:
+   ```
+   FRONTEND_URL=https://limifleet.vercel.app,https://limifleet-git-main.vercel.app
+   ```
+   (comma-separated for multiple preview/production URLs)
+3. Redeploy the API service on Render
+
+### Step 4: Run Database Migrations
+
+```bash
+# Render has a web shell feature, or use:
+render psql lcfms-postgres
+# Then run: npx prisma migrate deploy
+```
+
+Or via Render CLI:
+```bash
+render ssh lcfms-api
+cd apps/api
+npx prisma migrate deploy
+```
+
+### Step 5: Seed Demo Data
+
+```bash
+render ssh lcfms-api
+cd apps/api
+npx prisma db seed
+```
+
+---
+
+## Option B: Single VPS (Full Control)
 
 Best for: Small fleets, low budget, full control.
 
@@ -145,7 +225,7 @@ docker exec lcfms-api npx prisma migrate deploy
 
 ---
 
-## Option B: Managed Platform (Zero Infrastructure)
+## Option C: Managed Platform (Zero Infrastructure)
 
 Best for: Teams who don't want to manage servers.
 
@@ -192,7 +272,7 @@ fly secrets set NEXT_PUBLIC_API_URL=https://lcfms-api.fly.dev
 
 ---
 
-## Option C: AWS / GCP / Azure (Enterprise Scale)
+## Option D: AWS / GCP / Azure (Enterprise Scale)
 
 Best for: Large fleets, high availability, compliance requirements.
 
@@ -224,7 +304,7 @@ Then deploy the container images to ECS or EKS using the Kubernetes manifests in
 
 ---
 
-## Option D: Kubernetes (Self-Hosted or Managed)
+## Option E: Kubernetes (Self-Hosted or Managed)
 
 For teams already running Kubernetes clusters.
 

@@ -1,0 +1,97 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: lcfms-postgres
+    plan: starter
+    env: docker
+    dockerfilePath: ./infra/docker/postgres.Dockerfile
+    envVars:
+      - key: POSTGRES_USER
+        value: lcfms
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+      - key: POSTGRES_DB
+        value: lcfms
+    disk:
+      name: postgres-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 10
+
+  # Redis Cache
+  - type: redis
+    name: lcfms-redis
+    plan: free
+    ipAllowList: []
+
+  # Backend API
+  - type: web
+    name: lcfms-api
+    plan: free
+    runtime: node
+    buildCommand: cd apps/api && npm install && npm run build
+    startCommand: cd apps/api && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: lcfms-postgres
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://your-vercel-app-url.vercel.app
+      - key: AWS_REGION
+        value: us-east-1
+      - key: S3_BUCKET
+        value: your-s3-bucket
+    healthCheckPath: /health
+
+  # Optional: Worker for background jobs
+  - type: worker
+    name: lcfms-worker
+    plan: free
+    runtime: node
+    buildCommand: cd apps/api && npm install && npm run build
+    startCommand: cd apps/api && node dist/worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: lcfms-postgres
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: lcfms-redis
+          property: password

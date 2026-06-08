@@ -6,8 +6,16 @@ const nextConfig = {
     domains: ['localhost', 's3.amazonaws.com', 'cdn.lcfms.io'],
   },
   env: {
-    API_URL: process.env.API_URL || 'http://localhost:4000',
-    MAPBOX_TOKEN: process.env.MAPBOX_TOKEN,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+    NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
+  },
+  async rewrites() {
+    return process.env.NODE_ENV === 'development' ? [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:4000/api/:path*',
+      },
+    ] : [];
   },
 };
 
