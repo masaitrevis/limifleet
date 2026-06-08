@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lcfms
+  labels:
+    name: lcfms
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lcfms-secrets
+  namespace: lcfms
+type: Opaque
+stringData:
+  database-url: "postgresql://lcfms:changeme@postgres-service:5432/lcfms"
+  jwt-secret: "your-super-secret-jwt-key-change-this-in-production"
+  mapbox-token: "your-mapbox-token"
+  aws-access-key: ""
+  aws-secret-key: ""

@@ -1,0 +1,564 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  logoUrl     String?
+  address     String?
+  phone       String?
+  email       String?
+  timezone    String    @default("UTC")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  vehicles    Vehicle[]
+  drivers     Driver[]
+  geofences   Geofence[]
+  settings    CompanySettings?
+  alerts      Alert[]
+  
+  @@index([slug])
+  @@index([isActive])
+}
+
+model CompanySettings {
+  id                    String   @id @default(cuid())
+  companyId             String   @unique
+  company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  speedLimitKmh         Float    @default(80)
+  idleAlertMinutes      Int      @default(30)
+  maintenanceWindowKm   Int      @default(5000)
+  fuelAlertThreshold    Float    @default(0.15)
+  allowAutoDispatch     Boolean  @default(false)
+  requirePhotoCheckIn   Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  avatarUrl     String?
+  role          UserRole  @default(FLEET_MANAGER)
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  
+  @@index([email])
+  @@index([companyId])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  
+  @@index([token])
+  @@index([userId])
+}
+
+model Vehicle {
+  id               String        @id @default(cuid())
+  companyId        String
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicleId        String        @unique
+  registrationNumber String      @unique
+  vin              String?       @unique
+  type             VehicleType
+  manufacturer     String
+  model            String
+  year             Int
+  color            String?
+  fuelType         FuelType      @default(DIESEL)
+  tankCapacity     Float?
+  status           VehicleStatus @default(ACTIVE)
+  odometerKm       Float         @default(0)
+  assignedDriverId String?
+  assignedDriver   Driver?       @relation(fields: [assignedDriverId], references: [id])
+  gpsDeviceId      String?       @unique
+  gpsDevice        GpsDevice?    @relation(fields: [gpsDeviceId], references: [id])
+  lastLocation     VehicleLocation?
+  locations        VehicleLocation[]
+  trips            Trip[]
+  fuelRecords      FuelRecord[]
+  maintenanceRecords MaintenanceRecord[]
+  alerts           Alert[]
+  healthScore      Float?        @default(100)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  @@index([companyId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([assignedDriverId])
+}
+
+model GpsDevice {
+  id          String    @id @default(cuid())
+  imei        String    @unique
+  serialNumber String   @unique
+  model       String?
+  firmware    String?
+  isActive    Boolean   @default(true)
+  lastSeenAt  DateTime?
+  vehicle     Vehicle?
+  rawData     Json[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([imei])
+  @@index([serialNumber])
+}
+
+model Driver {
+  id             String     @id @default(cuid())
+  companyId      String
+  company        Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driverId       String     @unique
+  userId         String?    @unique
+  firstName      String
+  lastName       String
+  phone          String
+  email          String?
+  licenseNumber  String
+  licenseExpiry  DateTime
+  licenseClass   String?
+  dateOfBirth    DateTime?
+  hireDate       DateTime?
+  safetyScore    Float      @default(100)
+  status         DriverStatus @default(ACTIVE)
+  isActive       Boolean    @default(true)
+  assignedVehicleId String?
+  assignedVehicle   Vehicle?   @relation(fields: [assignedVehicleId], references: [id])
+  trips          Trip[]
+  behaviorEvents DriverBehavior[]
+  fuelEfficiency Float?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  
+  @@index([companyId])
+  @@index([driverId])
+  @@index([status])
+  @@index([licenseExpiry])
+}
+
+model DriverBehavior {
+  id              String          @id @default(cuid())
+  driverId        String
+  driver          Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  vehicle         Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  eventType       BehaviorEventType
+  severity        Severity
+  lat             Float?
+  lng             Float?
+  speedKmh        Float?
+  occurredAt      DateTime
+  tripId          String?
+  trip            Trip?           @relation(fields: [tripId], references: [id])
+  description     String?
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+  createdAt       DateTime        @default(now())
+  
+  @@index([driverId])
+  @@index([vehicleId])
+  @@index([eventType])
+  @@index([occurredAt])
+  @@index([tripId])
+}
+
+model VehicleLocation {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  lat         Float
+  lng         Float
+  speedKmh    Float    @default(0)
+  heading     Float?
+  altitude    Float?
+  accuracy    Float?
+  odometer    Float?
+  fuelLevel   Float?
+  ignition    Boolean  @default(false)
+  recordedAt  DateTime
+  isLatest    Boolean  @default(false)
+  
+  @@index([vehicleId, recordedAt])
+  @@index([vehicleId, isLatest])
+  @@index([lat, lng])
+  @@index([recordedAt])
+}
+
+model Trip {
+  id          String    @id @default(cuid())
+  companyId   String
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  tripId      String    @unique
+  startTime   DateTime
+  endTime     DateTime?
+  startLat    Float?
+  startLng    Float?
+  endLat      Float?
+  endLng      Float?
+  distanceKm  Float     @default(0)
+  durationMin Int       @default(0)
+  maxSpeedKmh Float?
+  avgSpeedKmh Float?
+  idleMin     Int       @default(0)
+  fuelUsedL   Float?
+  fuelCost    Float?
+  status      TripStatus @default(IN_PROGRESS)
+  route       Json?     // Array of {lat, lng, timestamp, speed}
+  geofenceEvents Json?  // Array of geofence enter/exit events
+  alerts      Alert[]
+  behaviors   DriverBehavior[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([companyId])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([startTime])
+  @@index([status])
+}
+
+model FuelRecord {
+  id          String    @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId    String?
+  driver      Driver?   @relation(fields: [driverId], references: [id])
+  amountL     Float
+  cost        Float?
+  costPerL    Float?
+  odometerKm  Float
+  station     String?
+  location    String?
+  lat         Float?
+  lng         Float?
+  receiptUrl  String?
+  isAnomaly   Boolean   @default(false)
+  anomalyReason String?
+  recordedAt  DateTime
+  createdAt   DateTime  @default(now())
+  
+  @@index([vehicleId])
+  @@index([recordedAt])
+  @@index([isAnomaly])
+}
+
+model MaintenanceRecord {
+  id          String            @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type        MaintenanceType
+  title       String
+  description String?
+  scheduledAt DateTime
+  completedAt DateTime?
+  cost        Float?
+  parts       Json?             // Array of {name, cost, quantity}
+  provider    String?
+  status      MaintenanceStatus @default(SCHEDULED)
+  priority    Priority          @default(MEDIUM)
+  reminderSent Boolean          @default(false)
+  odometerKm  Float?
+  nextDueKm   Float?
+  nextDueDate DateTime?
+  createdBy   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  @@index([vehicleId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([priority])
+}
+
+model Geofence {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  type        GeofenceType    @default(CIRCLE)
+  // For circle: center lat/lng + radius
+  // For polygon: array of vertices
+  config      Json
+  isActive    Boolean         @default(true)
+  alertOnEnter Boolean       @default(true)
+  alertOnExit  Boolean       @default(true)
+  vehicles    String[]        // Vehicle IDs
+  alerts      Alert[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  companyId   String
+  type        AlertType
+  severity    Severity    @default(MEDIUM)
+  title       String
+  description String?
+  vehicleId   String?
+  vehicle     Vehicle?    @relation(fields: [vehicleId], references: [id])
+  driverId    String?
+  tripId      String?
+  trip        Trip?       @relation(fields: [tripId], references: [id])
+  geofenceId  String?
+  geofence    Geofence?   @relation(fields: [geofenceId], references: [id])
+  lat         Float?
+  lng         Float?
+  metadata    Json?       // Additional alert-specific data
+  isRead      Boolean     @default(false)
+  isResolved  Boolean     @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  occurredAt  DateTime
+  createdAt   DateTime    @default(now())
+  
+  @@index([companyId])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([type])
+  @@index([severity])
+  @@index([isRead])
+  @@index([isResolved])
+  @@index([occurredAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      NotificationType
+  data      Json?    // Payload
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  companyId   String?
+  action      String   // e.g., "vehicle.create", "driver.update"
+  entity      String   // e.g., "vehicle", "driver"
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model FleetHealthSnapshot {
+  id              String   @id @default(cuid())
+  companyId       String
+  date            DateTime @default(now())
+  overallScore    Float
+  fuelScore       Float
+  maintenanceScore Float
+  driverScore     Float
+  utilizationScore Float
+  vehicleScores   Json     // Map of vehicleId -> score
+  driverScores    Json     // Map of driverId -> score
+  insights        Json     // AI-generated insights
+  recommendations Json     // AI-generated recommendations
+  createdAt       DateTime @default(now())
+  
+  @@index([companyId])
+  @@index([date])
+  @@unique([companyId, date])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  FLEET_MANAGER
+  DRIVER
+  VIEWER
+}
+
+enum VehicleType {
+  TRUCK
+  VAN
+  BUS
+  CAR
+  MOTORCYCLE
+  TRAILER
+  CONSTRUCTION
+  MINING
+  EMERGENCY
+  OTHER
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  RETIRED
+  SOLD
+  STOLEN
+}
+
+enum FuelType {
+  DIESEL
+  PETROL
+  ELECTRIC
+  HYBRID
+  CNG
+  LPG
+  OTHER
+}
+
+enum DriverStatus {
+  ACTIVE
+  OFF_DUTY
+  SUSPENDED
+  ON_LEAVE
+  TERMINATED
+}
+
+enum BehaviorEventType {
+  SPEEDING
+  HARSH_BRAKING
+  HARSH_ACCELERATION
+  SHARP_TURN
+  IDLE_EXCESSIVE
+  LATE_START
+  EARLY_FINISH
+  GEO_FENCE_VIOLATION
+  PHONE_USAGE
+  FATIGUE_DRIVING
+  SEATBELT_VIOLATION
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TripStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ABORTED
+}
+
+enum MaintenanceType {
+  OIL_CHANGE
+  TIRE_ROTATION
+  BRAKE_INSPECTION
+  ENGINE_CHECK
+  TRANSMISSION
+  BATTERY
+  COOLANT
+  AIR_FILTER
+  FUEL_FILTER
+  TIRE_REPLACEMENT
+  GENERAL_INSPECTION
+  REGULATORY_INSPECTION
+  REPAIR
+  OTHER
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum GeofenceType {
+  CIRCLE
+  POLYGON
+  POLYLINE
+}
+
+enum AlertType {
+  OVER_SPEEDING
+  GEO_FENCE_VIOLATION
+  GEO_FENCE_ENTER
+  GEO_FENCE_EXIT
+  MAINTENANCE_DUE
+  MAINTENANCE_OVERDUE
+  FUEL_ANOMALY
+  FUEL_LOW
+  VEHICLE_INACTIVE
+  VEHICLE_OFFLINE
+  DRIVER_BEHAVIOR
+  TRIP_STARTED
+  TRIP_COMPLETED
+  IGNITION_ON
+  IGNITION_OFF
+  TOWING
+  CRASH
+  PANIC
+  CUSTOM
+}
+
+enum NotificationType {
+  ALERT
+  MAINTENANCE_REMINDER
+  TRIP_UPDATE
+  SYSTEM
+  REPORT_READY
+  AI_INSIGHT
+}

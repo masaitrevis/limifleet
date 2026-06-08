@@ -1,0 +1,24 @@
+{
+  "name": "lcfms",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:generate": "cd packages/database && prisma generate",
+    "db:migrate": "cd packages/database && prisma migrate dev",
+    "db:seed": "cd packages/database && prisma db seed",
+    "db:studio": "cd packages/database && prisma studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "npm@10.2.0"
+}
